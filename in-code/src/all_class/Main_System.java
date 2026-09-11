@@ -1,5 +1,7 @@
 package all_class;
 
+import java.io.FilterOutputStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -22,6 +24,11 @@ public class Main_System {
         goods.add(new Goods("0003","笔记本电脑", "联想", new Date(), "ThinkPad X1", 4500.0, 5999.0, 20 ));
 
         System.out.println("=========== 欢迎使用购物管理系统 ===========");
+        while (true) {
+            showMainMenu();
+
+        }
+
 
     }
     private static void showMainMenu() {
@@ -61,9 +68,52 @@ public class Main_System {
         }
         else if (currentCustomer != null){
             System.out.println("当前顾客: " + currentCustomer.getUserName() + "（级别:" + currentCustomer.getLevel() + "）");
-            
         }
     }
-}
 
+
+    private static int readInt(String prompt) {
+        while (true) {
+            System.out.println(prompt);
+            try {
+                return Integer.parseInt(sc.nextLine().trim());
+            } catch (NumberFormatException e) {
+                System.out.println("请输入有效整数！");
+            }
+        }
+    }
+
+    private static double readDouble(String prompt){
+        while (true){
+            System.out.println(prompt);
+            try {
+                return Double.parseDouble(sc.nextLine().trim());
+            } catch (NumberFormatException e){
+                System.out.println("请输入有效数字！");
+            }
+        }
+    }
+
+    private static String readString(String prompt){
+        System.out.println();
+        return sc.nextLine().trim();
+    }
+
+    private static Date readDate(String prompt){
+        System.out.println(prompt + "(格式 xxxx-xx-xx,直接回车默认今天)：");
+        String input = sc.nextLine().trim();
+        if (input.isEmpty()) return new Date();
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("xxxx-xx-xx");
+            return sdf.parse(input);
+        }catch (Exception e){
+            System.out.println("日期格式错误，使用今天");
+            return new Date();
+        }
+    }
+
+    private static void adminFunction(){
+        if ()
+    }
+}
 
