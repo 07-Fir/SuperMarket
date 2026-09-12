@@ -37,7 +37,7 @@ public class Order {
     public Date getBuyTime(){return buyTime;}
 
     public String getPay(){
-        SimpleDateFormat sdf = new SimpleDateFormat("xxxx-xx-xx xx:xx:xx");
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         StringBuilder sb = new StringBuilder();
         sb.append("订单号：").append(orderID).append(", 顾客：").append(customer.getUserName())
                 .append(", 支付方式：").append(paymentMethod)

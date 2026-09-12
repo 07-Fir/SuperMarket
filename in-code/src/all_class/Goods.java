@@ -42,9 +42,17 @@ public class Goods {
     public int getStock() { return stock; }
     public void setStock(int stock) { this.stock = stock; }
 
+
+
+
     @Override
     public String toString(){
-        SimpleDateFormat sdf = new SimpleDateFormat("xxxx-xx-xx");
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+        return "编号:" + goodsID + ", 名称:" + goodsName + ", 厂家:" + factory + ", 生产日期:" + (DOM == null?"未知":sdf.format(DOM)) + ", 型号:" + model + ", 售价:" + outPrice + ", 库存:" + stock;
+    }
+
+    public String toAdminString(){
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
         return "编号:" + goodsID + ", 名称:" + goodsName + ", 厂家:" + factory + ", 生产日期:" + (DOM == null?"未知":sdf.format(DOM)) + ", 型号:" + model + ", 进价:" + inPrice + ", 零售价:" + outPrice + ", 库存:" + stock;
     }
 }

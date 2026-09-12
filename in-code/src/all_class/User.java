@@ -44,10 +44,10 @@ abstract class User {
     public boolean isLocked(){return locked;}
     public void setLocked(boolean locked){this.locked = locked;}
 
-    public boolean isPasswordSafe(String iPS){
+    public static boolean isPasswordSafe(String iPS){
         if (iPS.length() < 9) return false;
         boolean hasUpperCase = false, hasLowerCase = false , hasDigit = false, hasPunctuation = false;
-        String punctuation = "[]{}`~!@#$%^&*()-_|''/?,.<>;:+-";
+        String punctuation = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
         for (char c : iPS.toCharArray()){
             if(Character.isUpperCase(c)) hasUpperCase = true;
             else if (Character.isLowerCase(c)) hasLowerCase = true;
@@ -57,6 +57,20 @@ abstract class User {
         }
         return hasUpperCase && hasLowerCase && hasDigit && hasPunctuation;
     }
+
+ // 使用正则表达式检验手机号格式
+    public static boolean isPhoneRight(String phone){
+        if (phone == null) return false;
+        return phone.matches("^1[3-9]\\d{9}$");
+    }
+
+
+ // 使用正则表达式检验邮箱格式
+    public static boolean isEmailRight(String email){
+        if (email == null) return false;
+        return email.matches("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,6}$");
+    }
+
 
     public static String randomPassword() {
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz`~!@#$%^&*()_+-={}[]|:;'/?,.<>";
@@ -69,7 +83,7 @@ abstract class User {
     }
     @Override
     public String toString(){
-        SimpleDateFormat sdf = new SimpleDateFormat("xxxx-xx-xx xx-xx-xx");
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss");
         return "ID：" + userID +  ", 用户名：" + userName + ", 手机：" + phone + ", 邮箱：" + email + ", 注册时间：" + sdf.format(registerTime) + ", 累计消费金额：" + totalConsumption;
     }
 
