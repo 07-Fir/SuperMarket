@@ -28,6 +28,7 @@ abstract class User {
     }
 
     public String getUserID(){return userID;}
+    public void setUserID(String userID) {this.userID = userID;}
     public String getUserName(){return userName;}
     public void setUserName(String userName){this.userName = userName;}
     public String getPassword(){return password;}
@@ -37,7 +38,9 @@ abstract class User {
     public String getEmail(){return email;}
     public void setEmail(String email){this.email = email;}
     public Date getRegisterTime(){return registerTime;}
+    public void setRegisterTime(Date registerTime) {this.registerTime = registerTime;}
     public double getTotalConsumption(){return totalConsumption;}
+    public void setTotalConsumption(double totalConsumption){this.totalConsumption = totalConsumption;}
     public void addConsumption(double amount){this.totalConsumption += amount;}
     public int getLoginTimes(){return loginTimes;}
     public void setLoginTimes(int loginTimes){this.loginTimes = loginTimes;}
@@ -73,12 +76,13 @@ abstract class User {
 
 
     public static String randomPassword() {
-        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz`~!@#$%^&*()_+-={}[]|:;'/?,.<>";
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789`~!@#$%^&*()_+-={}[]|:;'/?,.<>";
         StringBuilder sb = new StringBuilder();
-        Random rd = new Random();
-        for (int i = 0; i < 10; i++) {
-            sb.append(chars.charAt(rd.nextInt(chars.length())));
-        }
+        Random rd = new java.security.SecureRandom();
+        do {
+            sb.setLength(0);
+            for (int i = 0; i < 12; i++) sb.append(chars.charAt(rd.nextInt(chars.length())));
+        } while (!isPasswordSafe(sb.toString()));
         return sb.toString();
     }
     @Override
@@ -109,9 +113,43 @@ class Customer extends User{
         if (amount >= 10000) return "金牌顾客";
         else if (amount >= 5000) return "银牌顾客";
         else return "铜牌顾客";
-
-
     }
+    public String toFileLine(){
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        return TextCodec.join(userID, userName, password, phone, email, sdf.format(registerTime), totalConsumption, loginTimes, locked);
+    }
+
+
+    public static Customer fromFileLine(String line){
+        try {
+            String[] parts = TextCodec.split(line);
+            if (parts.length != 7 && parts.length != 9) return null;
+            String userID = parts[0];
+            String userName = parts[1];
+            String password = parts[2];
+            String phone = parts[3];
+            String email = parts[4];
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            sdf.setLenient(false);
+            Date registerTime = sdf.parse(parts[5]);
+            Double total = Double.parseDouble(parts[6]);
+
+            Customer c = new Customer(userName, password, phone, email);
+            c.setUserID(userID);
+            c.setRegisterTime(registerTime);
+            c.setTotalConsumption(total);
+            if (!Double.isFinite(total) || total < 0) return null;
+            if (parts.length == 9) {
+                c.setLoginTimes(Integer.parseInt(parts[7]));
+                if (c.getLoginTimes() < 0 || !(parts[8].equals("true") || parts[8].equals("false"))) return null;
+                c.setLocked(Boolean.parseBoolean(parts[8]));
+            }
+            return c;
+        } catch (Exception e){
+            return null;
+        }
+    }
+
     @Override
     public String toString(){
         return super.toString() + ", 级别：" + getLevel();

@@ -28,3 +28,11 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+# Local persistence data and regression-test output
+.test-build/
+supermarket-data.txt
+supermarket-data.txt.bak
+supermarket-data.lock
+supermarket-data*.tmp
+supermarket-data.damaged-*.txt
