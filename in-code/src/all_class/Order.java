@@ -3,7 +3,8 @@ package all_class;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-public class Order {
+public class Order implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private static int counter = 1000;
     private int orderID;
     private Customer customer;
@@ -37,6 +38,10 @@ public class Order {
         }
 
     }
+
+    // static 字段不会自动保存，因此单独记录最后使用的订单号。
+    static int getLastOrderId() { return counter; }
+    static void restoreCounter(int lastId) { counter = Math.max(counter, lastId); }
 
     public int getOrderID(){return orderID;}
     public Customer getCustomer(){return customer;}

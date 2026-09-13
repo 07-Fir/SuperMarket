@@ -1,6 +1,7 @@
 package all_class;
 
-public class Administrators {
+public class Administrators implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private String account;
     private String password;
     private boolean isDefaultPassword;

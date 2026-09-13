@@ -3,7 +3,8 @@ package all_class;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class Goods {
+public class Goods implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private String goodsID;
     private String goodsName;
     private String factory;

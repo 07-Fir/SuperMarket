@@ -3,7 +3,8 @@ package all_class;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-abstract class User {
+abstract class User implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     protected String userID;
     protected String userName;
     protected String password;
@@ -94,6 +95,7 @@ abstract class User {
 }
 
 class Customer extends User{
+    private static final long serialVersionUID = 1L;
     private Map<Goods, Integer> cart;
     private List<Order> orderHistory;
 

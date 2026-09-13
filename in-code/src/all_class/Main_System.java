@@ -13,7 +13,7 @@ public class Main_System {
     private static Customer currentCustomer = null;
     private static MockEmailSender emailSender = new MockEmailSender();
 
-    private static TxtStore store;
+    private static BinaryStore store;
 
     public static void main(String[] args) {
         // 在 IDEA 中将 Working directory 设置为项目根目录。
@@ -21,7 +21,7 @@ public class Main_System {
                 System.getProperty("supermarket.dataDir", ".")).toAbsolutePath().normalize();
         System.out.println("数据目录：" + directory);
         try {
-            store = new TxtStore(directory);
+            store = new BinaryStore(directory);
             loadAllData();
             runMenu();
         } catch (IOException | UncheckedIOException e) {
@@ -30,7 +30,7 @@ public class Main_System {
     }
 
     private static void runMenu() {
-        System.out.println("=========== 欢迎使用购物管理系统 ===========");
+        System.out.println("=========== 欢迎使用购物管理系统 2.0 ===========");
         while (true) {
             showMainMenu();
             int choice = readInt("请选择操作：");
@@ -202,7 +202,7 @@ public class Main_System {
 
     public static void loadAllData() {
         try {
-            TxtStore.State state = store.load();
+            BinaryStore.State state = store.load();
             admins = state.admins;
             customers = state.customers;
             goodsList = state.goods;
@@ -211,12 +211,12 @@ public class Main_System {
         }
 
         // 首次启动添加管理员文件（管理员文件不存在）, 创建默认管理员
-        if (admins.isEmpty() && !store.hasSavedData()){
+        if (admins.isEmpty() && store.shouldCreateDefaults()){
             admins.add(new Administrators("admin", "ynuinfo#777"));
             System.out.println("首次启动，已创建默认管理员");
         }
         // 首次启动添加商品文件（商品文件不存在）
-        if (goodsList.isEmpty() && !store.hasSavedData()){
+        if (goodsList.isEmpty() && store.shouldCreateDefaults()){
                 // 定义 A-Z 对应的 26 个商品类别（A 代表电子产品）
                 String[] categories = {
                         "电子产品", "服饰鞋帽", "食品生鲜", "家居用品", "图书文娱", "美妆个护",
