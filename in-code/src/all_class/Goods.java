@@ -3,7 +3,8 @@ package all_class;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class Goods {
+public class Goods implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private String goodsID;
     private String goodsName;
     private String factory;
@@ -41,6 +42,41 @@ public class Goods {
     public void setOutPrice(double outPrice) { this.outPrice = outPrice; }
     public int getStock() { return stock; }
     public void setStock(int stock) { this.stock = stock; }
+
+
+// 将对象转化为一行文本
+    public String toFileLine(){
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+        String dateStr = (DOM == null)?"": sdf.format(DOM);
+        return TextCodec.join(goodsID, goodsName, factory, dateStr, model, inPrice, outPrice, stock);
+    }
+
+
+// 从一行文本中解析中商品对象
+    public static Goods fromFileLine(String line){
+        try {
+            String[] parts = TextCodec.split(line);
+            if (parts.length != 8) return null;
+            String id = parts[0];
+            String name = parts[1];
+            String factory = parts[2];
+            Date date = null;
+
+            if (!parts[3].isEmpty()){
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+                sdf.setLenient(false);
+                date = sdf.parse(parts[3]);
+            }
+            String model = parts[4];
+            double inPrice = Double.parseDouble(parts[5]);
+            double outPrice = Double.parseDouble(parts[6]);
+            int stock = Integer.parseInt(parts[7]);
+            if (!Double.isFinite(inPrice) || !Double.isFinite(outPrice) || inPrice < 0 || outPrice < 0 || stock < 0) return null;
+            return new Goods(id, name, factory, date, model, inPrice, outPrice, stock);
+        } catch (Exception e){
+            return null;
+        }
+    }
 
 
 

@@ -1,31 +1,41 @@
 package all_class;
 
-import java.io.FilterOutputStream;
-import java.lang.classfile.CustomAttribute;
-import java.lang.runtime.SwitchBootstraps;
-import java.nio.charset.StandardCharsets;
+import java.io.*;
 import java.text.SimpleDateFormat;
-import java.time.Year;
 import java.util.*;
 
 public class Main_System {
-    private static Scanner sc = new Scanner(System.in);
-    private static List<Administrators> admins = new ArrayList<>();
-    private static List<Customer> customers = new ArrayList<>();
-    private static List<Goods> goods = new ArrayList<>();
-    private static Administrators currentAdmin = null;
-    private static Customer currentCustomer = null;
-    private static MockEmailSender emailSender = new MockEmailSender();
+    private final Scanner sc = new Scanner(System.in);
+    private List<Administrators> admins = new ArrayList<>();
+    private List<Customer> customers = new ArrayList<>();
+    private List<Goods> goodsList  = new ArrayList<>();
+    private Administrators currentAdmin = null;
+    private Customer currentCustomer = null;
+    private final MockEmailSender emailSender = new MockEmailSender();
 
+    private SqliteStore store;
+    private int lastOrderId = 1000;
 
-    public static void main(String[] args){
-        admins.add(new Administrators("admin","ynuinfo#777"));
+    public static void main(String[] args) {
+        new Main_System().start();
+    }
 
-        goods.add(new Goods("A0001","智能手机", "华为",new Date(), "mate60", 2400.0, 2900.0, 50));
-        goods.add(new Goods("A0002","蓝牙耳机", "小米",new Date(), "Air2", 120.0, 199.0, 100));
-        goods.add(new Goods("A0003","笔记本电脑", "联想", new Date(), "ThinkPad X1", 4500.0, 5999.0, 20 ));
+    private void start() {
+        java.nio.file.Path directory = java.nio.file.Path.of(
+                System.getProperty("supermarket.dataDir", ".")).toAbsolutePath().normalize();
+        System.out.println("数据目录：" + directory);
+        try (SqliteStore sqliteStore = new SqliteStore(directory)) {
+            store = sqliteStore;
+            System.out.println("SQLite 数据库：" + directory.resolve("supermarket-data.db"));
+            loadAllData();
+            runMenu();
+        } catch (IOException | UncheckedIOException e) {
+            System.out.println("数据操作失败，程序已停止以保护已保存的数据：" + e.getMessage());
+        }
+    }
 
-        System.out.println("=========== 欢迎使用购物管理系统 ===========");
+    private void runMenu() {
+        System.out.println("=========== 欢迎使用购物管理系统 4.0 ===========");
         while (true) {
             showMainMenu();
             int choice = readInt("请选择操作：");
@@ -77,10 +87,13 @@ public class Main_System {
                         else System.out.println("您尚未登陆，亲");
                         break;
                     case 0:
-                        System.out.println("感谢使用，欢迎下次再见！");
+                        saveAllData();
+                        System.out.println("数据已保存,感谢使用，欢迎下次再见！");
                         return;
                     default: System.out.println("无效选项，请重新选择");
                 }
+            } catch (UncheckedIOException e) {
+                throw e;
             } catch (Exception e){
                 System.out.println("操作异常：" + e.getMessage());
                 e.printStackTrace();
@@ -88,10 +101,8 @@ public class Main_System {
             System.out.println("\n按回车键继续...");
             sc.nextLine();
         }
-
-
     }
-    private static void showMainMenu() {
+    private void showMainMenu() {
         System.out.println("\n---------------主菜单---------------");
         if(currentCustomer == null || currentAdmin != null) {
             System.out.println("1.管理员登录");
@@ -134,7 +145,7 @@ public class Main_System {
     }
 
 
-    private static int readInt(String prompt) {
+    private int readInt(String prompt) {
         while (true) {
             System.out.println(prompt);
             try {
@@ -145,7 +156,7 @@ public class Main_System {
         }
     }
 
-    private static double readDouble(String prompt){
+    private double readDouble(String prompt){
         while (true){
             System.out.println(prompt);
             try {
@@ -156,12 +167,12 @@ public class Main_System {
         }
     }
 
-    private static String readString(String prompt){
+    private String readString(String prompt){
         System.out.println(prompt);
         return sc.nextLine().trim();
     }
 
-    private static Date readDate(String prompt){
+    private Date readDate(String prompt){
         System.out.println(prompt + "(格式 yyyy-MM-dd,直接回车默认今天)：");
         String input = sc.nextLine().trim();
         if (input.isEmpty()) return new Date();
@@ -174,7 +185,7 @@ public class Main_System {
         }
     }
 
-    private static boolean confirm(String prompt){
+    private boolean confirm(String prompt){
         while (true){
             String input = readString(prompt + "（是/否）");
             if (input.equalsIgnoreCase("是")) return true;
@@ -182,13 +193,123 @@ public class Main_System {
             else System.out.println("请输入是/否");
         }
     }
+
+
+    private void saveAllData() {
+        try {
+            store.save(admins, customers, goodsList, lastOrderId);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public void loadAllData() {
+        try {
+            SqliteStore.State state = store.load();
+            admins = state.admins;
+            customers = state.customers;
+            goodsList = state.goods;
+            lastOrderId = state.lastOrderId;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        // 首次启动添加管理员文件（管理员文件不存在）, 创建默认管理员
+        if (admins.isEmpty() && store.shouldCreateDefaults()){
+            admins.add(new Administrators("admin", "ynuinfo#777"));
+            System.out.println("首次启动，已创建默认管理员");
+        }
+        // 首次启动添加商品文件（商品文件不存在）
+        if (goodsList.isEmpty() && store.shouldCreateDefaults()){
+                // 定义 A-Z 对应的 26 个商品类别（A 代表电子产品）
+                String[] categories = {
+                        "电子产品", "服饰鞋帽", "食品生鲜", "家居用品", "图书文娱", "美妆个护",
+                        "运动户外", "玩具乐器", "家用电器", "珠宝首饰", "宠物用品", "办公文具",
+                        "汽车用品", "医药健康", "母婴用品", "箱包皮具", "五金工具", "软件服务",
+                        "生鲜水果", "酒水饮料", "数码配件", "智能设备", "厨房用品", "清洁用品",
+                        "家具建材", "其他商品"
+                };
+                // 预定义 100 个真实商品名称（对应 A-Y 类别的 4 个商品）
+                String[] goodsNames = {
+                        // A 电子产品
+                        "iPhone 15 Pro", "华为 Mate 60", "小米 14 Ultra", "OPPO Find X7",
+                        // B 服饰鞋帽
+                        "优衣库 圆领T恤", "李宁 运动长裤", "耐克 Air Zoom", "阿迪达斯 连帽外套",
+                        // C 食品生鲜
+                        "三只松鼠 每日坚果", "良品铺子 猪肉脯", "伊利 金典纯牛奶", "五常 稻花香大米",
+                        // D 家居用品
+                        "宜家 收纳箱", "南极人 全棉四件套", "乐扣乐扣 水杯", "洁丽雅 纯棉毛巾",
+                        // E 图书文娱
+                        "《三体》全集", "《活着》余华", "晨光 中性笔套装", "得力 订书机",
+                        // F 美妆个护
+                        "兰蔻 小黑瓶", "雅诗兰黛 眼霜", "欧莱雅 洗发水", "舒肤佳 沐浴露",
+                        // G 运动户外
+                        "迪卡侬 瑜伽垫", "探路者 冲锋衣", "Keep 智能跳绳", "骆驼 登山鞋",
+                        // H 玩具乐器
+                        "乐高 机械组", "万代 高达模型", "雅马哈 电子琴", "费雪 益智积木",
+                        // I 家用电器
+                        "美的 变频空调", "海尔 双门冰箱", "格力 电风扇", "戴森 吸尘器",
+                        // J 珠宝首饰
+                        "周大福 黄金项链", "周生生 铂金戒指", "施华洛世奇 天鹅项链", "潘多拉 串饰手链",
+                        // K 宠物用品
+                        "皇家 猫粮", "麦富迪 狗粮", "小佩 智能饮水机", "pidan 猫砂盆",
+                        // L 办公文具
+                        "惠普 打印机", "得力 碎纸机", "齐心 文件柜", "晨光 笔记本",
+                        // M 汽车用品
+                        "米其林 轮胎", "3M 汽车贴膜", "70迈 行车记录仪", "博世 雨刮器",
+                        // N 医药健康
+                        "连花清瘟胶囊", "同仁堂 六味地黄丸", "鱼跃 电子血压计", "欧姆龙 血糖仪",
+                        // O 母婴用品
+                        "帮宝适 纸尿裤", "爱他美 奶粉", "好孩子 婴儿车", "贝亲 奶瓶",
+                        // P 箱包皮具
+                        "新秀丽 拉杆箱", "外交官 双肩包", "稻草人 钱包", "爱华仕 背包",
+                        // Q 五金工具
+                        "博世 电钻", "史丹利 扳手", "世达 螺丝刀套装", "牧田 角磨机",
+                        // R 软件服务
+                        "WPS 会员年卡", "Adobe 全家桶", "杀毒软件 三年版", "云存储 1TB",
+                        // S 生鲜水果
+                        "智利 车厘子", "泰国 金枕榴莲", "海南 贵妃芒", "新疆 阿克苏苹果",
+                        // T 酒水饮料
+                        "贵州茅台 飞天", "五粮液 普五", "农夫山泉 矿泉水", "可口可乐 汽水",
+                        // U 数码配件
+                        "安克 充电宝", "绿联 数据线", "闪迪 U盘", "罗技 无线鼠标",
+                        // V 智能设备
+                        "小爱同学 音箱", "天猫精灵 音箱", "小米 智能门锁", "华为 智能手环",
+                        // W 厨房用品
+                        "苏泊尔 炒锅", "双立人 刀具", "美的 电饭煲", "九阳 豆浆机",
+                        // X 清洁用品
+                        "蓝月亮 洗衣液", "威猛先生 洁厕灵", "滴露 消毒液", "心相印 抽纸",
+                        // Y 家具建材
+                        "林氏木业 沙发", "全友 双人床", "九牧 马桶", "欧普 照明灯"
+                };
+                for (int i = 0; i < 100; i++) {
+                    int categoryIndex = i / 4;
+                    char typeLetter = (char) ('A' + categoryIndex);
+                    int serialNumber = i % 4 + 1;
+                    String id = String.format("%c%04d", typeLetter, serialNumber);
+                    String categoryName = categories[categoryIndex];
+                    String name = categoryName + " - " + goodsNames[i];
+                    String factory = "厂商-" + typeLetter;
+                    String model = typeLetter + "-Model-" + serialNumber;
+                    double inPrice = 100.0 + (categoryIndex * 20) + (serialNumber * 10); // 进货价
+                    double outPrice = Math.round(inPrice * 1.35 * 100.0) / 100.0;      // 零售价（加价35%并保留两位小数）
+                    int stock = 50 + (serialNumber * 10);                                      // 库存 60-90
+                    Goods g = new Goods(id, name, factory, new Date(), model, inPrice, outPrice, stock);
+                    goodsList.add(g);
+                }
+
+                System.out.println("首次启动,已加载100个默认商品");
+            }
+            if (!store.hasSavedData()) saveAllData();
+        }
+
 // 管理员所有功能
-    private static void adminLogin(){
+    private void adminLogin(){
         if (currentAdmin != null) {System.out.println("已登录管理员" + currentAdmin.getAccount());return;}
         String acc = readString("账号：");
         String pw = readString("密码：");
         for (Administrators a : admins){
-            if (a.getAccount().equals(acc) && a.getPassword().equals(pw)){
+            if (a.getAccount().equals(acc) && a.verifyPassword(pw)){
                 currentAdmin = a;
                 System.out.println("管理员登陆成功");
                 if(currentAdmin.isDefaultPassword()){
@@ -207,11 +328,11 @@ public class Main_System {
     }
 
 
-    private static boolean forceChangeDefaultPassword(){
+    private boolean forceChangeDefaultPassword(){
         while (true){
             System.out.println("\n---首次登陆，强制修改默认密码---");
             String oldPW = readString("请输入当前默认密码：");
-            if (!currentAdmin.getPassword().equals(oldPW)){
+            if (!currentAdmin.verifyPassword(oldPW)){
                 System.out.println("原密码错误，请重新输入密码");
                 continue;
             }
@@ -222,6 +343,7 @@ public class Main_System {
             }
             if (newPW.equals(oldPW)){
                 System.out.println("新密码不能与默认密码相同,请重新输入");
+                continue;
             }
             String confirm = readString("请再次输入新密码：");
             if (!newPW.equals(confirm)) {
@@ -230,12 +352,13 @@ public class Main_System {
             }
             currentAdmin.setPassword(newPW);
             currentAdmin.setDefaultPassword(false);
+            saveAllData(); // 立即保存
             System.out.println("密码修改成功！现在可以继续使用管理员功能了！");
             return true;
         }
     }
 
-    private static void adminLogout(){
+    private void adminLogout(){
         if (currentAdmin != null){
             System.out.println("管理员" + currentAdmin.getAccount() + "已退出");
             currentAdmin = null;
@@ -243,10 +366,10 @@ public class Main_System {
     }
 
 
-    private static void adminChangePW(){
+    private void adminChangePW(){
        if(currentAdmin == null){System.out.println("请先登录管理员");return;}
        String oldPW = readString("请输入当前密码：");
-       if (!currentAdmin.getPassword().equals(oldPW)){
+       if (!currentAdmin.verifyPassword(oldPW)){
            System.out.println("原密码错误");
            return;
        }
@@ -261,10 +384,11 @@ public class Main_System {
            return;
        }
        currentAdmin.setPassword(newPW);
+       saveAllData(); //立即保存
        System.out.println("密码修改成功！");
     }
 
-    private static void adminResetCustomerPW(){
+    private void adminResetCustomerPW(){
         if (currentAdmin == null){System.out.println("请先登录管理员");return;}
         String username = readString("请输入要重置密码的顾客用户名：");
         Customer target = null;
@@ -282,11 +406,12 @@ public class Main_System {
         target.setPassword(newPW);
         target.setLocked(false);
         target.setLoginTimes(0);
+        saveAllData();
         emailSender.sendEmail(target.getEmail(),"您的账号密码已重置，新密码为：" + newPW);
         System.out.println("密码已重置并发送到顾客邮箱");
     }
 
-    private static void adminManageCustomer(){
+    private void adminManageCustomer(){
         if(currentAdmin == null) {System.out.println("请先登录管理员");return;}
         while (true){
             System.out.println("\n---顾客管理---");
@@ -315,6 +440,7 @@ public class Main_System {
                     }
                     if (confirm("确认删除顾客" + toRemove.getUserName() + "吗？此操作不可恢复！")){
                         customers.remove(toRemove);
+                        saveAllData();
                         System.out.println("删除成功");
                     }else {
                         System.out.println("取消删除");
@@ -344,7 +470,7 @@ public class Main_System {
     }
 
 
-    private static void adminManageGoods(){
+    private void adminManageGoods(){
         if (currentAdmin == null){
             System.out.println("请先登录管理员");
             return;
@@ -360,8 +486,8 @@ public class Main_System {
             int choice = readInt("请选择：");
             switch (choice){
                 case 1:
-                    if (goods.isEmpty()) System.out.println("暂无商品");
-                    else goods.forEach(g -> System.out.println(g.toAdminString()));
+                    if (goodsList.isEmpty()) System.out.println("暂无商品");
+                    else goodsList.forEach(g -> System.out.println(g.toAdminString()));
                     break;
                 case 2:
                     addGoods();
@@ -385,9 +511,9 @@ public class Main_System {
     }
 
 
-    private static void addGoods(){
+    private void addGoods(){
         String id = readString("商品编号：");
-        for (Goods g : goods){
+        for (Goods g : goodsList){
             if (g.getGoodsID().equals(id)){
                 System.out.println("编号已存在！");
                 return;
@@ -400,15 +526,21 @@ public class Main_System {
         double inPrice = readDouble("进货价：");
         double outPrice = readDouble("零售价：");
         int stock = readInt("库存量：");
+        if (id.isEmpty() || !Double.isFinite(inPrice) || !Double.isFinite(outPrice)
+                || inPrice < 0 || outPrice < 0 || stock < 0) {
+            System.out.println("商品编号不能为空，价格和库存必须为有效的非负数");
+            return;
+        }
         Goods g = new Goods(id, name, factory, dom, model, inPrice, outPrice, stock);
-        goods.add(g);
+        goodsList.add(g);
+        saveAllData(); //立即保存
         System.out.println("商品添加成功！:" + g.toAdminString());
     }
 
-    private static void updateGoods(){
+    private void updateGoods(){
         String id = readString("请输入要修改的商品编号：");
         Goods target = null;
-        for (Goods g : goods){
+        for (Goods g : goodsList){
             if (g.getGoodsID().equals(id)){
                 target = g;
                 break;
@@ -421,40 +553,70 @@ public class Main_System {
         System.out.println("当前信息：" + target.toAdminString());
         System.out.println("输入新值（直接回车保留原值）：");
         String name = readString("名称（" + target.getGoodsName() + "）：");
-        if (!name.isEmpty()) target.setGoodsName(name);
         String factory = readString("厂家（" + target.getFactory() + "）：");
-        if (!factory.isEmpty()) target.setFactory(factory);
-        Date dom = readDate("生产日期（当前" + new SimpleDateFormat("yyyy-MM-dd").format(target.getDOM()) + "）：");
-        if (dom != null) target.setDOM(dom);
+        String dateText = readString("生产日期（yyyy-MM-dd，回车保留原值）：");
+        Date dom = target.getDOM();
+        if (!dateText.isEmpty()) {
+            try {
+                SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
+                format.setLenient(false);
+                dom = format.parse(dateText);
+            } catch (java.text.ParseException e) {
+                System.out.println("日期无效，修改取消");
+                return;
+            }
+        }
         String model = readString("型号（" + target.getModel() + "）：");
-        if (!model.isEmpty()) target.setModel(model);
         String inPriceStr = readString("进货价（" + target.getInPrice() + "）：");
-        if (!inPriceStr.isEmpty()) target.setInPrice(Double.parseDouble(inPriceStr));
         String outPriceStr = readString("零售价（" + target.getOutPrice() + "）：");
-        if (!outPriceStr.isEmpty()) target.setOutPrice(Double.parseDouble(outPriceStr));
         String stockStr = readString("库存（" + target.getStock() + "）：");
-        if (!stockStr.isEmpty()) target.setStock(Integer.parseInt(stockStr));
+        double inPrice, outPrice;
+        int stock;
+        try {
+            inPrice = inPriceStr.isEmpty() ? target.getInPrice() : Double.parseDouble(inPriceStr);
+            outPrice = outPriceStr.isEmpty() ? target.getOutPrice() : Double.parseDouble(outPriceStr);
+            stock = stockStr.isEmpty() ? target.getStock() : Integer.parseInt(stockStr);
+            if (!Double.isFinite(inPrice) || !Double.isFinite(outPrice) || inPrice < 0 || outPrice < 0 || stock < 0)
+                throw new NumberFormatException();
+        } catch (NumberFormatException e) {
+            System.out.println("价格和库存必须为有效的非负数，修改取消");
+            return;
+        }
+        if (!name.isEmpty()) target.setGoodsName(name);
+        if (!factory.isEmpty()) target.setFactory(factory);
+        target.setDOM(dom);
+        if (!model.isEmpty()) target.setModel(model);
+        target.setInPrice(inPrice);
+        target.setOutPrice(outPrice);
+        target.setStock(stock);
+        saveAllData(); //立即保存
         System.out.println("商品信息更新成功");
     }
 
 
-    private static void deleteGoods(){
+    private void deleteGoods(){
         String id = readString("请输入要删除的商品编号：");
         Goods target = null;
-        for (Goods g : goods){
+        for (Goods g : goodsList){
             if (g.getGoodsID().equals(id)){
                 target = g;
                 break;
             }
         }
+        if (target == null) {
+            System.out.println("未找到商品");
+            return;
+        }
         if (confirm("确认删除商品" + target.getGoodsName() + "吗？此操作不可恢复！")){
-            goods.remove(target);
+            goodsList.remove(target);
+            for (Customer c : customers) c.getCart().remove(target);
+            saveAllData(); //立即保存
             System.out.println("删除成功！");
         }else System.out.println("取消删除");
     }
 
 
-    private static void searchGoods(){
+    private void searchGoods(){
         String name = readString("商品名称（空表示不限）：");
         String factory = readString("生产厂家（空表示不限）");
         String priceRangeStr = readString("零售价格范围，格式：最低价-最高价（如 1000-3000,空表示不限）：");
@@ -469,7 +631,7 @@ public class Main_System {
             }
         }
         List<Goods> result = new ArrayList<>();
-        for (Goods g : goods){
+        for (Goods g : goodsList){
             boolean match = true;
             if (!name.isEmpty() && !g.getGoodsName().contains(name))  match = false;
             if (!factory.isEmpty() && !g.getFactory().contains(factory)) match = false;
@@ -484,7 +646,7 @@ public class Main_System {
         }
     }
 // 顾客所有功能
-    private static void customerRegister(){
+    private void customerRegister(){
         String username = readString("用户名（至少5个字符）：");
         if (username.length() < 5){
             System.out.println("用户名长度不足5！");
@@ -523,10 +685,11 @@ public class Main_System {
         }
         Customer newCustomer = new Customer(username, pwd, phone, email);
         customers.add(newCustomer);
+        saveAllData(); //立即保存
         System.out.println("注册成功！您的ID为" + newCustomer.getUserID());
     }
 
-    private static void customerLogin(){
+    private void customerLogin(){
         if (currentCustomer != null) {System.out.println("已登录顾客" + currentCustomer.getUserName()); return;}
         String username = readString("用户名：");
         Customer target = null;
@@ -552,23 +715,26 @@ public class Main_System {
         }
         System.out.println("请输入密码：");
         String pwd = sc.nextLine().trim();
-        if (target.getPassword().equals(pwd)){
+        if (target.verifyPassword(pwd)){
             target.setLoginTimes(0);
+            saveAllData();
             currentCustomer = target;
             System.out.println("登录成功！欢迎" + target.getUserName());
         }else {
             target.setLoginTimes(target.getLoginTimes() + 1);
             if (target.getLoginTimes() >= 3){
                 target.setLocked(true);
+                saveAllData();
                 System.out.println("连续三次密码错误，账户已被锁定！");
             }else {
+                saveAllData();
                 System.out.println("密码错误，剩余尝试次数：" + (3 - target.getLoginTimes()));
             }
         }
     }
 
 
-    private static void custmerResetPW(Customer customer){
+    private void custmerResetPW(Customer customer){
         System.out.println("---重置密码---");
         String phone = readString("请输入注册手机号：");
         String email = readString("请输入注册邮箱");
@@ -580,12 +746,13 @@ public class Main_System {
         customer.setPassword(newPW);
         customer.setLocked(false);
         customer.setLoginTimes(0);
+        saveAllData();
         emailSender.sendEmail(customer.getEmail(), "您已重置密码,新密码为：" + newPW);
         System.out.println("密码已重置并发送至您的邮箱，请使用新密码重新登录");
     }
 
 
-    private static void customerLogout(){
+    private void customerLogout(){
         if (currentCustomer != null){
             System.out.println("顾客" + currentCustomer.getUserName() + "已退出");
             currentCustomer = null;
@@ -593,7 +760,7 @@ public class Main_System {
     }
 
 
-    private static void customerModifyInformation(){
+    private void customerModifyInformation(){
         if (currentCustomer == null){System.out.println("请先登录"); return;}
         System.out.println("---修改个人信息---");
         System.out.println("输入新值（回车默认保留原值）：");
@@ -609,7 +776,6 @@ public class Main_System {
                     return;
                 }
             }
-            currentCustomer.setUserName(username);
         }
         String phone = readString("手机号（" + currentCustomer.getPhone() + "）：");
         if (!phone.isEmpty()) {
@@ -617,7 +783,6 @@ public class Main_System {
                 System.out.println("手机号格式错误！应为11位数字，1开头，第二位3-9");
                 return;
             }
-            currentCustomer.setPhone(phone);
         }
         String email = readString("邮箱（" + currentCustomer.getEmail() + "）：");
         if (!email.isEmpty()) {
@@ -625,12 +790,12 @@ public class Main_System {
                 System.out.println("邮箱格式错误！示例：user@medium.com");
                 return;
             }
-            currentCustomer.setEmail(email);
         }
         String changePW = readString("是否修改密码（是/否）（回车默认否）：");
+        String pendingPassword = null;
         if (changePW.equalsIgnoreCase("是")){
             String oldPW = readString("请输入原密码：");
-            if (!currentCustomer.getPassword().equals(oldPW)){
+            if (!currentCustomer.verifyPassword(oldPW)){
                 System.out.println("原密码错误！");
                 return;
             }
@@ -644,22 +809,26 @@ public class Main_System {
                 System.out.println("两次输入不一致！");
                 return;
             }
-            currentCustomer.setPassword(newPW);
-            System.out.println("密码修改成功！");
+            pendingPassword = newPW;
         }
+        if (!username.isEmpty()) currentCustomer.setUserName(username);
+        if (!phone.isEmpty()) currentCustomer.setPhone(phone);
+        if (!email.isEmpty()) currentCustomer.setEmail(email);
+        if (pendingPassword != null) currentCustomer.setPassword(pendingPassword);
+        saveAllData(); //立即保存
         System.out.println("个人信息修改完成");
     }
 
 
-    private static void customerBrowseGoods(){
+    private void customerBrowseGoods(){
         if (currentCustomer == null){System.out.println("请先登录"); return;}
         System.out.println("\n---商品列表---");
-        if (goods.isEmpty()){System.out.println("暂无商品"); return;}
-        goods.forEach(System.out::println);
+        if (goodsList.isEmpty()){System.out.println("暂无商品"); return;}
+        goodsList.forEach(System.out::println);
     }
 
 
-    private static void customerManageCart() {
+    private void customerManageCart() {
         if (currentCustomer == null) {
             System.out.println("请先登录");
             return;
@@ -686,7 +855,7 @@ public class Main_System {
     }
 
 
-    private static void viewCart(){
+    private void viewCart(){
         Map<Goods, Integer> cart = currentCustomer.getCart();
         if (cart.isEmpty()){
             System.out.println("购物车为空");
@@ -704,10 +873,10 @@ public class Main_System {
     }
 
 
-    private static void addToCart(){
+    private void addToCart(){
         String id = readString("输入添加的商品编号：");
         Goods target = null;
-        for (Goods g : goods){
+        for (Goods g : goodsList){
             if (g.getGoodsID().equals(id)){
                 target = g;
                 break;
@@ -722,17 +891,18 @@ public class Main_System {
             System.out.println("数量必须大于0");
             return;
         }
-        if (amount > target.getStock()){
+        if ((long) amount + currentCustomer.getCart().getOrDefault(target, 0) > target.getStock()){
             System.out.println("库存不足,当前库存数：" + target.getStock());
             return;
         }
         Map<Goods, Integer> cart = currentCustomer.getCart();
         cart.put(target, cart.getOrDefault(target, 0) + amount);
+        saveAllData();
         System.out.println("已添加" + target.getGoodsName() + "x" + amount + "到购物车");
     }
 
 
-    private static void removeFromCart(){
+    private void removeFromCart(){
         Map<Goods, Integer> cart = currentCustomer.getCart();
         if (cart.isEmpty()){
             System.out.println("购物车为空");
@@ -753,12 +923,13 @@ public class Main_System {
         }
         if (confirm("确认从购物车中移除：" + target.getGoodsName() + "吗？")){
             cart.remove(target);
+            saveAllData();
             System.out.println("移除成功");
         }else System.out.println("取笑移除");
     }
 
 
-    private static void modifyCartItem(){
+    private void modifyCartItem(){
         Map<Goods, Integer> cart = currentCustomer.getCart();
         if (cart.isEmpty()){
             System.out.println("购物车为空");
@@ -780,6 +951,7 @@ public class Main_System {
         int newAmount = readInt("请输入新的数量（输入0或负数将移除该商品）：");
         if (newAmount <= 0){
             cart.remove(target);
+            saveAllData();
             System.out.println("商品已从购物车中移除");
         }else {
             if (newAmount > target.getStock()){
@@ -787,12 +959,13 @@ public class Main_System {
                 return;
             }
             cart.put(target, newAmount);
+            saveAllData();
             System.out.println("商品数量修改成功");
         }
     }
 
 
-    private static void customerCheckout(){
+    private void customerCheckout(){
         if (currentCustomer == null){System.out.println("请先登录"); return;}
         Map<Goods, Integer> cart = currentCustomer.getCart();
         if (cart.isEmpty()){
@@ -811,6 +984,10 @@ public class Main_System {
                 return;
             }
         }
+        if (lastOrderId == Integer.MAX_VALUE) {
+            System.out.println("订单编号已用完，无法结账");
+            return;
+        }
         List<Goods> orderGoods = new ArrayList<>();
         Map<String, Integer> countMap = new HashMap<>();
         for (Map.Entry<Goods, Integer> entry : cart.entrySet()){
@@ -828,14 +1005,17 @@ public class Main_System {
             orderGoods.add(g);
             countMap.put(g.getGoodsID(), need);
         }
-        Order order = new Order(currentCustomer, orderGoods, countMap, method);
+        Order order = new Order(lastOrderId + 1, currentCustomer, orderGoods, countMap, method);
+        lastOrderId = order.getOrderID();
         currentCustomer.addOrder(order);
+        currentCustomer.addConsumption(order.getTotalAmount());
         cart.clear();
+        saveAllData(); //立即保存（库存、消费金额已变）
         System.out.println("结账成功！订单已生成");
         System.out.println(order.getPay());
     }
 
-    private static void customerViewHistory(){
+    private void customerViewHistory(){
         if (currentCustomer == null){System.out.println("请先登录"); return;}
         List<Order> history = currentCustomer.getOrderHistory();
         if (history.isEmpty()){
