@@ -4,7 +4,7 @@ import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-public class Main_System {
+public class Main {
     private final Scanner sc = new Scanner(System.in);
     private List<Administrators> admins = new ArrayList<>();
     private List<Customer> customers = new ArrayList<>();
@@ -16,11 +16,8 @@ public class Main_System {
     private SqliteStore store;
     private int lastOrderId = 1000;
 
-    public static void main(String[] args) {
-        new Main_System().start();
-    }
 
-    private void start() {
+    public void start() {
         java.nio.file.Path directory = java.nio.file.Path.of(
                 System.getProperty("supermarket.dataDir", ".")).toAbsolutePath().normalize();
         System.out.println("数据目录：" + directory);
